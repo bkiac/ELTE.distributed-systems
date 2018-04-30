@@ -38,4 +38,8 @@ public class Agent {
         this.msg = msg;
     }
 
+    @Override
+    public String toString() {
+        return serialNumber + ". " + names + " '" + msg + "'";
+    }
 }

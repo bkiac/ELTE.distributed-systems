@@ -21,10 +21,10 @@ public class AgentMain {
         Agency kgb = Agency.createAgencyFromFiles(KGB_FOLDER);
 
         System.out.println("CIA");
-        cia.getAgents().forEach(agent -> System.out.println(agent.getNames()));
+        cia.getAgents().forEach(System.out::println);
 
         System.out.println("KGB");
-        kgb.getAgents().forEach(agent -> System.out.println(agent.getNames()));
+        kgb.getAgents().forEach(System.out::println);
     }
 
 }
