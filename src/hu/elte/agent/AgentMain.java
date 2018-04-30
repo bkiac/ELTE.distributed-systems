@@ -1,15 +1,30 @@
 package hu.elte.agent;
 
+import java.io.IOException;
+import java.nio.file.Paths;
+
 public class AgentMain {
 
-    public static void main(String[] args) {
+    private static final String CIA_FOLDER = Paths.get(".").toAbsolutePath().normalize().toString() + "/cia";
+    private static final String KGB_FOLDER = Paths.get(".").toAbsolutePath().normalize().toString() + "/kgb";
+
+    public static void main(String[] args) throws IOException {
         // Start thread for each of the agents
-        System.out.println("CIA agent pool: " + args[0]);
-        System.out.println("KGB agent pool: " + args[1]);
+        int ciaSize = Integer.parseInt(args[0]);
+        int kgbSize = Integer.parseInt(args[1]);
 
         // Time in milliseconds
-        System.out.println("Timeout lower bound: " + args[2]);
-        System.out.println("Timeout upper bound:" + args[3]);
+        int timeoutLowerBound = Integer.parseInt(args[2]);
+        int timeoutUpperBound = Integer.parseInt(args[3]);
+
+        Agency cia = Agency.createAgencyFromFiles(CIA_FOLDER);
+        Agency kgb = Agency.createAgencyFromFiles(KGB_FOLDER);
+
+        System.out.println("CIA");
+        cia.getAgents().forEach(agent -> System.out.println(agent.getNames()));
+
+        System.out.println("KGB");
+        kgb.getAgents().forEach(agent -> System.out.println(agent.getNames()));
     }
 
 }
