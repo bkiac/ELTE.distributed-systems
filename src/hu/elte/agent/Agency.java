@@ -63,4 +63,9 @@ public class Agency {
         return new Agent(serialNumber, names, msg);
     }
 
+    // TODO: executor service?
+    public void startAll() {
+        agents.forEach(Agent::start);
+    }
+
 }
