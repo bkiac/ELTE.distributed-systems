@@ -22,6 +22,7 @@ public class Agent extends Thread {
     private ServerSocket server;
     private Faction faction;
     private Map<String, Faction> knownNames;
+    private boolean isArrested;
 
     public Agent(Faction faction, int serialNumber, List<String> names, List<String> secrets) {
         this.faction = faction;
@@ -31,6 +32,7 @@ public class Agent extends Thread {
         this.knownNames = new HashMap<>();
         this.toldSecrets = new ArrayList<>();
         this.enemySecrets = new ArrayList<>();
+        this.isArrested = false;
     }
 
     private void createServerSocket() {
@@ -79,11 +81,19 @@ public class Agent extends Thread {
                 if (in.nextLine().equals("OK")) {
                     addSecretToList(in.nextLine(), knownSecrets);
                     write(out, getRandomSecretFromList(knownSecrets));
-                    System.out.println(this + " knows " + knownSecrets);
                 } else { // in.nextLine() == "???"
-
+                    if (Integer.parseInt(in.nextLine()) == this.serialNumber) {
+                        write(out, tellRandomSecret());
+                        if (AgentUtil.listEqualsIgnoreOrder(knownSecrets, toldSecrets)) {
+                            this.isArrested = true;
+                            return;
+                        }
+                    } else {
+                        return;
+                    }
                 }
 
+                System.out.println(this + " knows " + knownSecrets);
             } catch (IOException ignored) {
             }
         };
@@ -116,26 +126,29 @@ public class Agent extends Thread {
 
                 if (this.faction.equals(guessedFaction)) {
                     write(out, "OK");
+
                     write(out, getRandomSecretFromList(knownSecrets));
                     addSecretToList(in.nextLine(), knownSecrets);
-                    System.out.println(this + " knows " + knownSecrets);
+
                 } else {
                     write(out, "???");
+
+                    write(out, String.valueOf(generateRandomIntInRange(1, 5))); // TODO: check if they've already met????, range to guess in????
+                    addSecretToList(in.nextLine(), knownSecrets);
                 }
 
+                System.out.println(this + " knows " + knownSecrets);
             } catch (IOException ignored) {
             }
         };
 
-        while (true) {
+        while (!this.isArrested) {
             executor.submit(server);
             executor.submit(client);
         }
 
-//        executor.submit(accept);
-//        executor.submit(connect);
-//
-//        shutDownExecutor(executor);
+        System.out.println(this + " has been arrested. Stopping activity.");
+        shutDownExecutor(executor);
     }
 
     private Faction guessFaction(String msg) {
@@ -165,19 +178,28 @@ public class Agent extends Thread {
         return secrets.get(generateRandomIntInRange(0, secrets.size()));
     }
 
+    private synchronized String tellRandomSecret() {
+        List<String> untoldSecrets = new ArrayList<>(this.knownSecrets);
+        untoldSecrets.removeAll(this.toldSecrets);
+
+        String secret = untoldSecrets.get(generateRandomIntInRange(0, untoldSecrets.size()));
+        this.toldSecrets.add(secret);
+
+        return secret;
+    }
+
     private void shutDownExecutor(ExecutorService executor) {
         try {
-            System.out.println("attempt to shutdown executor");
             executor.shutdown();
             executor.awaitTermination(5, TimeUnit.SECONDS);
         } catch (InterruptedException e) {
-            System.err.println("tasks interrupted");
+//            System.err.println("tasks interrupted");
         } finally {
             if (!executor.isTerminated()) {
-                System.err.println("cancel non-finished tasks");
+//                System.err.println("cancel non-finished tasks");
             }
             executor.shutdownNow();
-            System.out.println("shutdown finished");
+//            System.out.println("shutdown finished");
         }
     }
 
