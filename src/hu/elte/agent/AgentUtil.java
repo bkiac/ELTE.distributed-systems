@@ -14,23 +14,9 @@ import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import java.util.stream.Stream;
 
-public class Agency {
+public class AgentUtil {
 
-    private List<Agent> agents;
-
-    private Agency(List<Agent> agents) {
-        this.agents = agents;
-    }
-
-    public List<Agent> getAgents() {
-        return agents;
-    }
-
-    public void setAgents(List<Agent> agents) {
-        this.agents = agents;
-    }
-
-    public static Agency createAgencyFromFiles(String folderPath) throws IOException {
+    public static List<Agent> createAgetsFromFolder(String folderPath) throws IOException {
         List<Agent> agents = new ArrayList<>();
 
         try (Stream<Path> paths = Files.walk(Paths.get(folderPath))) {
@@ -43,7 +29,7 @@ public class Agency {
             });
         }
 
-        return new Agency(agents);
+        return agents;
     }
 
     private static Agent createAgentFromFile(Path filePath) throws FileNotFoundException {
@@ -54,18 +40,14 @@ public class Agency {
         Matcher matcher = pattern.matcher(fileName);
         matcher.find(); // result is ignored because file name is always in the correct form
 
+        Faction faction = matcher.group(1).equals("1") ? Faction.CIA : Faction.KGB;
         int serialNumber = Integer.parseInt(matcher.group(2));
 
         Scanner sc = new Scanner(file);
         List<String> names = Arrays.asList(sc.nextLine().split(" "));
         String msg = sc.nextLine();
 
-        return new Agent(serialNumber, names, msg);
-    }
-
-    // TODO: executor service?
-    public void startAll() {
-        agents.forEach(Agent::start);
+        return new Agent(faction, serialNumber, names, msg);
     }
 
 }

@@ -2,6 +2,7 @@ package hu.elte.agent;
 
 import java.io.IOException;
 import java.nio.file.Paths;
+import java.util.List;
 
 public class AgentMain {
 
@@ -9,7 +10,7 @@ public class AgentMain {
     public static final String KGB_FOLDER = Paths.get(".").toAbsolutePath().normalize().toString() + "/kgb";
 
     public static final int PORT_LOWER = 20000;
-    public static final int PORT_UPPER = 20100;
+    public static final int PORT_UPPER = 20004;
 
     public static int TIMEOUT_LOWER;
     public static int TIMEOUT_UPPER;
@@ -23,11 +24,11 @@ public class AgentMain {
         TIMEOUT_LOWER = Integer.parseInt(args[2]);
         TIMEOUT_UPPER = Integer.parseInt(args[3]);
 
-        Agency cia = Agency.createAgencyFromFiles(CIA_FOLDER);
-        Agency kgb = Agency.createAgencyFromFiles(KGB_FOLDER);
+        List<Agent> cia = AgentUtil.createAgetsFromFolder(CIA_FOLDER);
+        List<Agent> kgb = AgentUtil.createAgetsFromFolder(KGB_FOLDER);
 
-        cia.startAll();
-        kgb.startAll();
+        cia.forEach(Agent::start);
+        kgb.forEach(Agent::start);
     }
 
 }

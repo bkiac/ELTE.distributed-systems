@@ -1,9 +1,13 @@
 package hu.elte.agent;
 
 import java.io.IOException;
+import java.io.PrintWriter;
 import java.net.ServerSocket;
 import java.net.Socket;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
+import java.util.Scanner;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ThreadLocalRandom;
@@ -17,35 +21,19 @@ public class Agent extends Thread {
     private List<String> names;
     private String msg;
     private ServerSocket server;
+    private Faction faction;
+    private Map<String, Faction> knownNames;
 
-    public Agent(int serialNumber, List<String> names, String msg) {
+    public Agent(Faction faction, int serialNumber, List<String> names, String msg) {
+        this.faction = faction;
         this.serialNumber = serialNumber;
         this.names = names;
         this.msg = msg;
+        this.knownNames = new HashMap<>();
     }
 
-    public int getSerialNumber() {
-        return serialNumber;
-    }
-
-    public void setSerialNumber(int serialNumber) {
-        this.serialNumber = serialNumber;
-    }
-
-    public List<String> getNames() {
-        return names;
-    }
-
-    public void setNames(List<String> names) {
-        this.names = names;
-    }
-
-    public String getMsg() {
-        return msg;
-    }
-
-    public void setMsg(String msg) {
-        this.msg = msg;
+    public Faction getFaction() {
+        return faction;
     }
 
     private void createServerSocket() {
@@ -63,15 +51,37 @@ public class Agent extends Thread {
     public void run() {
         createServerSocket();
 
-        System.out.println(this + "started on port: " + server.getLocalPort());
+        System.out.println(this + " started on port: " + server.getLocalPort());
 
         ExecutorService executor = Executors.newFixedThreadPool(2);
 
+        // TODO: try with resources
         Runnable accept = () -> {
             try {
                 server.setSoTimeout(TIMEOUT_UPPER);
-                server.accept();
-                System.out.println(this + "accepted another agent on port: " + server.getLocalPort());
+                Socket client = server.accept();
+
+                // successfull connection
+                System.out.println(this + " accepted another agent on port: " + server.getLocalPort());
+
+                Scanner in = new Scanner(client.getInputStream());
+                PrintWriter out = new PrintWriter(client.getOutputStream());
+
+                String randomName = names.get(generateRandomIntInRange(0, names.size()));
+                write(out, randomName);
+
+                System.out.println(this + " sent '" + randomName + "' on port: " + server.getLocalPort());
+
+                Faction guessedFaction = Faction.getFactionByName(in.nextLine());
+
+                System.out.println(this + " received '" + guessedFaction.getName() + "' as guess on port: " + server.getLocalPort());
+
+                if (!guessedFaction.equals(faction)) {
+                    client.close();
+                } else {
+                    write(out, "OK");
+                }
+
             } catch (IOException ignored) {
             }
         };
@@ -79,13 +89,34 @@ public class Agent extends Thread {
         Runnable connect = () -> {
             try {
                 int randomPort = generateRandomIntInRange(PORT_LOWER, PORT_UPPER);
-                while (randomPort == this.server.getLocalPort()) {
+                while (randomPort == server.getLocalPort()) {
                     randomPort = generateRandomIntInRange(PORT_LOWER, PORT_UPPER);
                 }
 
                 TimeUnit.MILLISECONDS.sleep(generateRandomIntInRange(TIMEOUT_LOWER, TIMEOUT_UPPER));
-                Socket socket = new Socket("localhost", generateRandomIntInRange(PORT_LOWER, PORT_UPPER));
-                System.out.println(this + "connected to an agent on port: " + socket.getPort());
+                Socket server = new Socket("localhost", randomPort);
+
+                System.out.println(this + " connected to an agent on port: " + server.getPort());
+
+                Scanner in = new Scanner(server.getInputStream());
+                PrintWriter out = new PrintWriter(server.getOutputStream());
+
+                String receivedRandomName = in.nextLine();
+
+                System.out.println(this + " received '" + receivedRandomName + "' on port: " + server.getPort());
+
+                Faction guessedFaction = guessFaction(receivedRandomName);
+                write(out, guessedFaction.getName());
+
+                System.out.println(this + " guessed server's faction as '" + guessedFaction.getName() + "' on port: " + server.getPort());
+
+                String confirmationMessage = in.nextLine();
+
+                if (confirmationMessage.equals("OK")) {
+                    knownNames.put(receivedRandomName, guessedFaction);
+                }
+
+                System.out.println(this + " knows " + knownNames);
             } catch (InterruptedException | IOException ignored) {
             }
         };
@@ -99,6 +130,15 @@ public class Agent extends Thread {
 //        executor.submit(connect);
 //
 //        shutDownExecutor(executor);
+    }
+
+    private Faction guessFaction(String msg) {
+        Faction faction = knownNames.get(msg);
+        if (faction == null) {
+            int guess = generateRandomIntInRange(1, 2);
+            faction = guess == 1 ? Faction.CIA : Faction.KGB;
+        }
+        return faction;
     }
 
     private void shutDownExecutor(ExecutorService executor) {
@@ -121,10 +161,16 @@ public class Agent extends Thread {
         return ThreadLocalRandom.current().nextInt(min, max + 1);
     }
 
+    private static void write(PrintWriter pw, String message) {
+        pw.println(message);
+        pw.flush();
+    }
+
     @Override
     public String toString() {
         StringBuilder sb = new StringBuilder();
         this.names.forEach(name -> sb.append(name).append(" "));
+        sb.append("from ").append(this.faction.getName());
         return sb.toString();
     }
 
