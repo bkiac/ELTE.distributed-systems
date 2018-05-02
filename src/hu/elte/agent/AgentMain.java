@@ -9,8 +9,9 @@ public class AgentMain {
     public static final String CIA_FOLDER = Paths.get(".").toAbsolutePath().normalize().toString() + "/cia";
     public static final String KGB_FOLDER = Paths.get(".").toAbsolutePath().normalize().toString() + "/kgb";
 
+    public static final String HOST = "localhost";
     public static final int PORT_LOWER = 20000;
-    public static final int PORT_UPPER = 20004;
+    public static final int PORT_UPPER = 20005;
 
     public static int TIMEOUT_LOWER;
     public static int TIMEOUT_UPPER;

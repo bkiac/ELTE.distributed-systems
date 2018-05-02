@@ -12,7 +12,6 @@ public enum Faction {
     private final String name;
 
     private static final Map<String, Faction> LOOKUP = new HashMap<>();
-
     static {
         for (Faction f : Faction.values()) {
             LOOKUP.put(f.getName(), f);

@@ -41,6 +41,7 @@ public class Agent extends Thread {
         while (true) {
             try {
                 this.server = new ServerSocket(generateRandomIntInRange(PORT_LOWER, PORT_UPPER));
+                server.setSoTimeout(TIMEOUT_UPPER);
                 return;
             } catch (IOException ignored) {
             }
@@ -55,17 +56,13 @@ public class Agent extends Thread {
 
         ExecutorService executor = Executors.newFixedThreadPool(2);
 
-        // TODO: try with resources
         Runnable accept = () -> {
-            try {
-                server.setSoTimeout(TIMEOUT_UPPER);
-                Socket client = server.accept();
-
-                // successfull connection
+            try (
+                    Socket client = server.accept();
+                    Scanner in = new Scanner(client.getInputStream());
+                    PrintWriter out = new PrintWriter(client.getOutputStream())
+            ) {
                 System.out.println(this + " accepted another agent on port: " + server.getLocalPort());
-
-                Scanner in = new Scanner(client.getInputStream());
-                PrintWriter out = new PrintWriter(client.getOutputStream());
 
                 String randomName = names.get(generateRandomIntInRange(0, names.size()));
                 write(out, randomName);
@@ -88,18 +85,16 @@ public class Agent extends Thread {
 
         Runnable connect = () -> {
             try {
-                int randomPort = generateRandomIntInRange(PORT_LOWER, PORT_UPPER);
-                while (randomPort == server.getLocalPort()) {
-                    randomPort = generateRandomIntInRange(PORT_LOWER, PORT_UPPER);
-                }
-
                 TimeUnit.MILLISECONDS.sleep(generateRandomIntInRange(TIMEOUT_LOWER, TIMEOUT_UPPER));
-                Socket server = new Socket("localhost", randomPort);
+            } catch (InterruptedException ignored) {
+            }
 
+            try (
+                    Socket server = new Socket(HOST, findRandomPort());
+                    Scanner in = new Scanner(server.getInputStream());
+                    PrintWriter out = new PrintWriter(server.getOutputStream())
+            ) {
                 System.out.println(this + " connected to an agent on port: " + server.getPort());
-
-                Scanner in = new Scanner(server.getInputStream());
-                PrintWriter out = new PrintWriter(server.getOutputStream());
 
                 String receivedRandomName = in.nextLine();
 
@@ -117,7 +112,7 @@ public class Agent extends Thread {
                 }
 
                 System.out.println(this + " knows " + knownNames);
-            } catch (InterruptedException | IOException ignored) {
+            } catch (IOException ignored) {
             }
         };
 
@@ -139,6 +134,14 @@ public class Agent extends Thread {
             faction = guess == 1 ? Faction.CIA : Faction.KGB;
         }
         return faction;
+    }
+
+    private int findRandomPort() {
+        int randomPort = generateRandomIntInRange(PORT_LOWER, PORT_UPPER);
+        while (randomPort == server.getLocalPort()) {
+            randomPort = generateRandomIntInRange(PORT_LOWER, PORT_UPPER);
+        }
+        return randomPort;
     }
 
     private void shutDownExecutor(ExecutorService executor) {
