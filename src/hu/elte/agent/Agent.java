@@ -4,10 +4,7 @@ import java.io.IOException;
 import java.io.PrintWriter;
 import java.net.ServerSocket;
 import java.net.Socket;
-import java.util.HashMap;
-import java.util.List;
-import java.util.Map;
-import java.util.Scanner;
+import java.util.*;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ThreadLocalRandom;
@@ -19,21 +16,21 @@ public class Agent extends Thread {
 
     private int serialNumber;
     private List<String> names;
-    private String msg;
+    private List<String> knownSecrets;
+    private List<String> toldSecrets;
+    private List<String> enemySecrets;
     private ServerSocket server;
     private Faction faction;
     private Map<String, Faction> knownNames;
 
-    public Agent(Faction faction, int serialNumber, List<String> names, String msg) {
+    public Agent(Faction faction, int serialNumber, List<String> names, List<String> secrets) {
         this.faction = faction;
         this.serialNumber = serialNumber;
         this.names = names;
-        this.msg = msg;
+        this.knownSecrets = secrets;
         this.knownNames = new HashMap<>();
-    }
-
-    public Faction getFaction() {
-        return faction;
+        this.toldSecrets = new ArrayList<>();
+        this.enemySecrets = new ArrayList<>();
     }
 
     private void createServerSocket() {
@@ -52,73 +49,87 @@ public class Agent extends Thread {
     public void run() {
         createServerSocket();
 
-        System.out.println(this + " started on port: " + server.getLocalPort());
+        System.out.println(this + " started on port: " + this.server.getLocalPort());
 
         ExecutorService executor = Executors.newFixedThreadPool(2);
 
-        Runnable accept = () -> {
+        Runnable server = () -> {
             try (
-                    Socket client = server.accept();
-                    Scanner in = new Scanner(client.getInputStream());
-                    PrintWriter out = new PrintWriter(client.getOutputStream())
+                    Socket agent = this.server.accept();
+                    Scanner in = new Scanner(agent.getInputStream());
+                    PrintWriter out = new PrintWriter(agent.getOutputStream())
             ) {
-                System.out.println(this + " accepted another agent on port: " + server.getLocalPort());
+                System.out.println(this + " accepted another agent on port: " + this.server.getLocalPort());
 
                 String randomName = names.get(generateRandomIntInRange(0, names.size()));
                 write(out, randomName);
 
-                System.out.println(this + " sent '" + randomName + "' on port: " + server.getLocalPort());
+                System.out.println(this + " sent '" + randomName + "' on port: " + this.server.getLocalPort());
 
                 Faction guessedFaction = Faction.getFactionByName(in.nextLine());
 
-                System.out.println(this + " received '" + guessedFaction.getName() + "' as guess on port: " + server.getLocalPort());
+                System.out.println(this + " received '" + guessedFaction.getName() + "' as guess on port: " + this.server.getLocalPort());
 
                 if (!guessedFaction.equals(faction)) {
-                    client.close();
+                    return;
                 } else {
                     write(out, "OK");
+                }
+
+                if (in.nextLine().equals("OK")) {
+                    addSecretToList(in.nextLine(), knownSecrets);
+                    write(out, getRandomSecretFromList(knownSecrets));
+                    System.out.println(this + " knows " + knownSecrets);
+                } else { // in.nextLine() == "???"
+
                 }
 
             } catch (IOException ignored) {
             }
         };
 
-        Runnable connect = () -> {
+        Runnable client = () -> {
             try {
                 TimeUnit.MILLISECONDS.sleep(generateRandomIntInRange(TIMEOUT_LOWER, TIMEOUT_UPPER));
             } catch (InterruptedException ignored) {
             }
 
             try (
-                    Socket server = new Socket(HOST, findRandomPort());
-                    Scanner in = new Scanner(server.getInputStream());
-                    PrintWriter out = new PrintWriter(server.getOutputStream())
+                    Socket agent = new Socket(HOST, findRandomPort());
+                    Scanner in = new Scanner(agent.getInputStream());
+                    PrintWriter out = new PrintWriter(agent.getOutputStream())
             ) {
-                System.out.println(this + " connected to an agent on port: " + server.getPort());
+                System.out.println(this + " connected to an agent on port: " + agent.getPort());
 
                 String receivedRandomName = in.nextLine();
 
-                System.out.println(this + " received '" + receivedRandomName + "' on port: " + server.getPort());
+                System.out.println(this + " received '" + receivedRandomName + "' on port: " + agent.getPort());
 
                 Faction guessedFaction = guessFaction(receivedRandomName);
                 write(out, guessedFaction.getName());
 
-                System.out.println(this + " guessed server's faction as '" + guessedFaction.getName() + "' on port: " + server.getPort());
+                System.out.println(this + " guessed server's faction as '" + guessedFaction.getName() + "' on port: " + agent.getPort());
 
-                String confirmationMessage = in.nextLine();
-
-                if (confirmationMessage.equals("OK")) {
+                if (in.nextLine().equals("OK")) {
                     knownNames.put(receivedRandomName, guessedFaction);
                 }
 
-                System.out.println(this + " knows " + knownNames);
+                if (this.faction.equals(guessedFaction)) {
+                    write(out, "OK");
+                    write(out, getRandomSecretFromList(knownSecrets));
+                    addSecretToList(in.nextLine(), knownSecrets);
+                    System.out.println(this + " knows " + knownSecrets);
+                } else {
+                    write(out, "???");
+                }
+
             } catch (IOException ignored) {
             }
         };
 
         while (true) {
-            executor.submit(accept);
-            executor.submit(connect);
+            executor.submit(server);
+            executor.submit(client);
         }
 
 //        executor.submit(accept);
@@ -142,6 +153,16 @@ public class Agent extends Thread {
             randomPort = generateRandomIntInRange(PORT_LOWER, PORT_UPPER);
         }
         return randomPort;
+    }
+
+    private synchronized void addSecretToList(String secret, List<String> secrets) {
+        if (!secrets.contains(secret)) {
+            secrets.add(secret);
+        }
+    }
+
+    private synchronized String getRandomSecretFromList(List<String> secrets) {
+        return secrets.get(generateRandomIntInRange(0, secrets.size()));
     }
 
     private void shutDownExecutor(ExecutorService executor) {

@@ -45,9 +45,10 @@ public class AgentUtil {
 
         Scanner sc = new Scanner(file);
         List<String> names = Arrays.asList(sc.nextLine().split(" "));
-        String msg = sc.nextLine();
+        List<String> secrets = new ArrayList<>();
+        secrets.add(sc.nextLine());
 
-        return new Agent(faction, serialNumber, names, msg);
+        return new Agent(faction, serialNumber, names, secrets);
     }
 
 }
