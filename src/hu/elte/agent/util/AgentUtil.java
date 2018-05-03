@@ -61,7 +61,7 @@ public class AgentUtil {
     public static void shutDownExecutor(ExecutorService executor) {
         try {
             executor.shutdown();
-            executor.awaitTermination(5, TimeUnit.SECONDS);
+            executor.awaitTermination(1, TimeUnit.SECONDS);
         } catch (InterruptedException e) {
 //            System.err.println("tasks interrupted");
         } finally {

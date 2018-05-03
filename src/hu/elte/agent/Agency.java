@@ -25,19 +25,16 @@ public class Agency {
         this.isWinner = false;
     }
 
+    public List<Agent> getAgentList() {
+        return agentList;
+    }
+
     public boolean isWinner() {
         return isWinner;
     }
 
     public void setWinner(boolean winner) {
         isWinner = winner;
-    }
-
-    public void startAll() {
-//        ExecutorService executor = Executors.newFixedThreadPool(agentList.size());
-
-        agentList.forEach(Agent::start);
-
     }
 
     public boolean areAllAgentsArrested() {

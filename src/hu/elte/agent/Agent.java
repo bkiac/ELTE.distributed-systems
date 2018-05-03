@@ -71,9 +71,11 @@ public class Agent extends Thread {
                     Scanner in = new Scanner(agent.getInputStream());
                     PrintWriter out = new PrintWriter(agent.getOutputStream())
             ) {
+                agent.setSoTimeout(TIMEOUT_LOWER);
+
                 System.out.println(this + " accepted another agent on port: " + this.server.getLocalPort());
 
-                String randomName = names.get(generateRandomIntInRange(0, names.size()));
+                String randomName = names.get(generateRandomIntInRange(0, names.size() - 1));
                 write(out, randomName);
 
                 System.out.println(this + " sent '" + randomName + "' on port: " + this.server.getLocalPort());
@@ -99,7 +101,7 @@ public class Agent extends Thread {
                             return;
                         }
                     } else {
-                        return;
+//                        return;
                     }
                 }
 
@@ -119,6 +121,8 @@ public class Agent extends Thread {
                     Scanner in = new Scanner(agent.getInputStream());
                     PrintWriter out = new PrintWriter(agent.getOutputStream())
             ) {
+                agent.setSoTimeout(TIMEOUT_LOWER);
+
                 System.out.println(this + " connected to an agent on port: " + agent.getPort());
 
                 String receivedRandomName = in.nextLine();
@@ -161,6 +165,7 @@ public class Agent extends Thread {
             System.out.println(this + " has been arrested. Stopping activity.");
         }
 
+        // shutdown
         shutDownExecutor(executor);
     }
 
@@ -210,14 +215,14 @@ public class Agent extends Thread {
     }
 
     private synchronized String getRandomSecretFromList(List<String> secrets) {
-        return secrets.get(generateRandomIntInRange(0, secrets.size()));
+        return secrets.get(generateRandomIntInRange(0, secrets.size() - 1));
     }
 
     private synchronized String tellRandomSecret() {
         List<String> untoldSecrets = new ArrayList<>(this.knownSecrets);
         untoldSecrets.removeAll(this.toldSecrets);
 
-        String secret = untoldSecrets.get(generateRandomIntInRange(0, untoldSecrets.size()));
+        String secret = untoldSecrets.get(generateRandomIntInRange(0, untoldSecrets.size() - 1));
         this.toldSecrets.add(secret);
 
         return secret;
