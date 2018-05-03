@@ -1,5 +1,7 @@
 package hu.elte.agent;
 
+import hu.elte.agent.util.AgentUtil;
+
 import java.io.IOException;
 import java.nio.file.Paths;
 import java.util.List;
@@ -17,8 +19,10 @@ public class AgentMain {
     public static int TIMEOUT_LOWER;
     public static int TIMEOUT_UPPER;
 
+    public static Agency CIA;
+    public static Agency KGB;
+
     public static void main(String[] args) throws IOException {
-        // Start thread for each of the agents
         int ciaSize = Integer.parseInt(args[0]);
         int kgbSize = Integer.parseInt(args[1]);
 
@@ -26,11 +30,17 @@ public class AgentMain {
         TIMEOUT_LOWER = Integer.parseInt(args[2]);
         TIMEOUT_UPPER = Integer.parseInt(args[3]);
 
-        List<Agent> cia = AgentUtil.createAgetsFromFolder(CIA_FOLDER);
-        List<Agent> kgb = AgentUtil.createAgetsFromFolder(KGB_FOLDER);
+        CIA = AgentUtil.createAgencyFromFolder(CIA_FOLDER);
+        KGB = AgentUtil.createAgencyFromFolder(KGB_FOLDER);
 
-        cia.forEach(Agent::start);
-        kgb.forEach(Agent::start);
+        CIA.startAll();
+        KGB.startAll();
+
+        if (CIA.isWinner()) {
+            System.out.println("Central Intelligence Agency has won the game!");
+        } else {
+            System.out.println("Komitet gosudarstvennoy bezopasnosti has won the game!");
+        }
     }
 
 }

@@ -1,5 +1,8 @@
 package hu.elte.agent;
 
+import hu.elte.agent.util.AgentUtil;
+import hu.elte.agent.util.Faction;
+
 import java.io.IOException;
 import java.io.PrintWriter;
 import java.net.ServerSocket;
@@ -11,6 +14,7 @@ import java.util.concurrent.ThreadLocalRandom;
 import java.util.concurrent.TimeUnit;
 
 import static hu.elte.agent.AgentMain.*;
+import static hu.elte.agent.util.AgentUtil.shutDownExecutor;
 
 public class Agent extends Thread {
 
@@ -18,7 +22,6 @@ public class Agent extends Thread {
     private List<String> names;
     private List<String> knownSecrets;
     private List<String> toldSecrets;
-    private List<String> enemySecrets;
     private ServerSocket server;
     private Faction faction;
     private Map<String, Faction> knownNames;
@@ -31,8 +34,15 @@ public class Agent extends Thread {
         this.knownSecrets = secrets;
         this.knownNames = new HashMap<>();
         this.toldSecrets = new ArrayList<>();
-        this.enemySecrets = new ArrayList<>();
         this.isArrested = false;
+    }
+
+    public List<String> getKnownSecrets() {
+        return knownSecrets;
+    }
+
+    public boolean isArrested() {
+        return isArrested;
     }
 
     private void createServerSocket() {
@@ -79,12 +89,12 @@ public class Agent extends Thread {
                 }
 
                 if (in.nextLine().equals("OK")) {
-                    addSecretToList(in.nextLine(), knownSecrets);
-                    write(out, getRandomSecretFromList(knownSecrets));
+                    addSecretToList(in.nextLine(), this.knownSecrets);
+                    write(out, getRandomSecretFromList(this.knownSecrets));
                 } else { // in.nextLine() == "???"
                     if (Integer.parseInt(in.nextLine()) == this.serialNumber) {
                         write(out, tellRandomSecret());
-                        if (AgentUtil.listEqualsIgnoreOrder(knownSecrets, toldSecrets)) {
+                        if (AgentUtil.listEqualsIgnoreOrder(this.knownSecrets, this.toldSecrets)) {
                             this.isArrested = true;
                             return;
                         }
@@ -121,20 +131,20 @@ public class Agent extends Thread {
                 System.out.println(this + " guessed server's faction as '" + guessedFaction.getName() + "' on port: " + agent.getPort());
 
                 if (in.nextLine().equals("OK")) {
-                    knownNames.put(receivedRandomName, guessedFaction);
+                    this.knownNames.put(receivedRandomName, guessedFaction);
                 }
 
                 if (this.faction.equals(guessedFaction)) {
                     write(out, "OK");
 
-                    write(out, getRandomSecretFromList(knownSecrets));
-                    addSecretToList(in.nextLine(), knownSecrets);
+                    write(out, getRandomSecretFromList(this.knownSecrets));
+                    addSecretToList(in.nextLine(), this.knownSecrets);
 
                 } else {
                     write(out, "???");
 
                     write(out, String.valueOf(generateRandomIntInRange(1, 5))); // TODO: check if they've already met????, range to guess in????
-                    addSecretToList(in.nextLine(), knownSecrets);
+                    addSecretToList(in.nextLine(), this.knownSecrets);
                 }
 
                 System.out.println(this + " knows " + knownSecrets);
@@ -142,13 +152,38 @@ public class Agent extends Thread {
             }
         };
 
-        while (!this.isArrested) {
-            executor.submit(server);
-            executor.submit(client);
+        do {
+            executor.execute(server);
+            executor.execute(client);
+        } while (!this.isArrested && !isGameOver());
+
+        if (this.isArrested) {
+            System.out.println(this + " has been arrested. Stopping activity.");
         }
 
-        System.out.println(this + " has been arrested. Stopping activity.");
         shutDownExecutor(executor);
+    }
+
+    private synchronized boolean isGameOver() {
+        if (KGB.isWinner() || CIA.isWinner()) {
+            return true;
+        }
+
+        if (this.faction.equals(Faction.CIA)) {
+            if (KGB.areAllAgentsArrested() || KGB.isCompromised(this)) {
+                CIA.setWinner(true);
+
+                return true;
+            }
+        } else { // Faction.KGB
+            if (CIA.areAllAgentsArrested() || CIA.isCompromised(this)) {
+                KGB.setWinner(true);
+
+                return true;
+            }
+        }
+
+        return false;
     }
 
     private Faction guessFaction(String msg) {
@@ -162,7 +197,7 @@ public class Agent extends Thread {
 
     private int findRandomPort() {
         int randomPort = generateRandomIntInRange(PORT_LOWER, PORT_UPPER);
-        while (randomPort == server.getLocalPort()) {
+        while (randomPort == this.server.getLocalPort()) {
             randomPort = generateRandomIntInRange(PORT_LOWER, PORT_UPPER);
         }
         return randomPort;
@@ -186,21 +221,6 @@ public class Agent extends Thread {
         this.toldSecrets.add(secret);
 
         return secret;
-    }
-
-    private void shutDownExecutor(ExecutorService executor) {
-        try {
-            executor.shutdown();
-            executor.awaitTermination(5, TimeUnit.SECONDS);
-        } catch (InterruptedException e) {
-//            System.err.println("tasks interrupted");
-        } finally {
-            if (!executor.isTerminated()) {
-//                System.err.println("cancel non-finished tasks");
-            }
-            executor.shutdownNow();
-//            System.out.println("shutdown finished");
-        }
     }
 
     private int generateRandomIntInRange(int min, int max) {

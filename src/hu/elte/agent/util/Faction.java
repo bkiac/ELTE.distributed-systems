@@ -1,4 +1,4 @@
-package hu.elte.agent;
+package hu.elte.agent.util;
 
 import java.util.HashMap;
 import java.util.Map;
