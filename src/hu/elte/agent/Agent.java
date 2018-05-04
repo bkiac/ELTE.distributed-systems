@@ -8,13 +8,10 @@ import java.io.PrintWriter;
 import java.net.ServerSocket;
 import java.net.Socket;
 import java.util.*;
-import java.util.concurrent.ExecutorService;
-import java.util.concurrent.Executors;
 import java.util.concurrent.ThreadLocalRandom;
 import java.util.concurrent.TimeUnit;
 
 import static hu.elte.agent.AgentMain.*;
-import static hu.elte.agent.util.AgentUtil.shutDownExecutor;
 
 public class Agent extends Thread {
 
@@ -63,110 +60,129 @@ public class Agent extends Thread {
 
         System.out.println(this + " started on port: " + this.server.getLocalPort());
 
-        ExecutorService executor = Executors.newFixedThreadPool(2);
-
         Runnable server = () -> {
-            try (
-                    Socket agent = this.server.accept();
-                    Scanner in = new Scanner(agent.getInputStream());
-                    PrintWriter out = new PrintWriter(agent.getOutputStream())
-            ) {
-                agent.setSoTimeout(TIMEOUT_LOWER);
+            while (!this.isArrested && !isGameOver()) {
+                try (
+                        Socket agent = this.server.accept();
+                        Scanner in = new Scanner(agent.getInputStream());
+                        PrintWriter out = new PrintWriter(agent.getOutputStream())
+                ) {
+                    agent.setSoTimeout(TIMEOUT_LOWER);
 
-                System.out.println(this + " accepted another agent on port: " + this.server.getLocalPort());
+                    System.out.println(this + " accepted another agent on port: " + this.server.getLocalPort());
 
-                String randomName = names.get(generateRandomIntInRange(0, names.size() - 1));
-                write(out, randomName);
+                    String randomName = names.get(generateRandomIntInRange(0, names.size() - 1));
+                    write(out, randomName);
 
-                System.out.println(this + " sent '" + randomName + "' on port: " + this.server.getLocalPort());
+                    System.out.println(this + " sent '" + randomName + "' on port: " + this.server.getLocalPort());
 
-                Faction guessedFaction = Faction.getFactionByName(in.nextLine());
+                    Faction guessedFaction = Faction.getFactionByName(in.nextLine());
 
-                System.out.println(this + " received '" + guessedFaction.getName() + "' as guess on port: " + this.server.getLocalPort());
+                    System.out.println(this + " received '" + guessedFaction.getName() + "' as guess on port: " + this.server.getLocalPort());
 
-                if (!guessedFaction.equals(faction)) {
-                    return;
-                } else {
-                    write(out, "OK");
-                }
-
-                if (in.nextLine().equals("OK")) {
-                    addSecretToList(in.nextLine(), this.knownSecrets);
-                    write(out, getRandomSecretFromList(this.knownSecrets));
-                } else { // in.nextLine() == "???"
-                    if (Integer.parseInt(in.nextLine()) == this.serialNumber) {
-                        write(out, tellRandomSecret());
-                        if (AgentUtil.listEqualsIgnoreOrder(this.knownSecrets, this.toldSecrets)) {
-                            this.isArrested = true;
-                            return;
-                        }
+                    if (!guessedFaction.equals(faction)) {
+                        write(out, "DISCONNECTED");
+                        continue;
                     } else {
-//                        return;
+                        write(out, "OK");
                     }
-                }
 
-                System.out.println(this + " knows " + knownSecrets);
-            } catch (IOException ignored) {
+                    if (in.nextLine().equals("OK")) {
+                        addSecretToList(in.nextLine(), this.knownSecrets);
+                        write(out, getRandomSecretFromList(this.knownSecrets));
+                    } else { // in.nextLine() == "???"
+                        if (Integer.parseInt(in.nextLine()) == this.serialNumber) {
+                            write(out, tellRandomSecret());
+
+                            if (AgentUtil.listEqualsIgnoreOrder(this.knownSecrets, this.toldSecrets)) {
+                                this.isArrested = true;
+                            }
+                        } else {
+                            write(out, "DISCONNECTED");
+                        }
+                    }
+
+                    System.out.println(this + " knows " + knownSecrets);
+                } catch (IOException ignored) {
+                }
             }
         };
 
         Runnable client = () -> {
-            try {
-                TimeUnit.MILLISECONDS.sleep(generateRandomIntInRange(TIMEOUT_LOWER, TIMEOUT_UPPER));
-            } catch (InterruptedException ignored) {
-            }
-
-            try (
-                    Socket agent = new Socket(HOST, findRandomPort());
-                    Scanner in = new Scanner(agent.getInputStream());
-                    PrintWriter out = new PrintWriter(agent.getOutputStream())
-            ) {
-                agent.setSoTimeout(TIMEOUT_LOWER);
-
-                System.out.println(this + " connected to an agent on port: " + agent.getPort());
-
-                String receivedRandomName = in.nextLine();
-
-                System.out.println(this + " received '" + receivedRandomName + "' on port: " + agent.getPort());
-
-                Faction guessedFaction = guessFaction(receivedRandomName);
-                write(out, guessedFaction.getName());
-
-                System.out.println(this + " guessed server's faction as '" + guessedFaction.getName() + "' on port: " + agent.getPort());
-
-                if (in.nextLine().equals("OK")) {
-                    this.knownNames.put(receivedRandomName, guessedFaction);
+            while (!this.isArrested && !isGameOver()) {
+                try {
+                    TimeUnit.MILLISECONDS.sleep(generateRandomIntInRange(TIMEOUT_LOWER, TIMEOUT_UPPER));
+                } catch (InterruptedException ignored) {
                 }
 
-                if (this.faction.equals(guessedFaction)) {
-                    write(out, "OK");
+                try (
+                        Socket agent = new Socket(HOST, findRandomPort());
+                        Scanner in = new Scanner(agent.getInputStream());
+                        PrintWriter out = new PrintWriter(agent.getOutputStream())
+                ) {
+                    agent.setSoTimeout(TIMEOUT_LOWER);
 
-                    write(out, getRandomSecretFromList(this.knownSecrets));
-                    addSecretToList(in.nextLine(), this.knownSecrets);
+                    System.out.println(this + " connected to an agent on port: " + agent.getPort());
 
-                } else {
-                    write(out, "???");
+                    String receivedRandomName = in.nextLine();
 
-                    write(out, String.valueOf(generateRandomIntInRange(1, 5))); // TODO: check if they've already met????, range to guess in????
-                    addSecretToList(in.nextLine(), this.knownSecrets);
+                    System.out.println(this + " received '" + receivedRandomName + "' on port: " + agent.getPort());
+
+                    Faction guessedFaction = guessFaction(receivedRandomName);
+                    write(out, guessedFaction.getName());
+
+                    System.out.println(this + " guessed server's faction as '" + guessedFaction.getName() + "' on port: " + agent.getPort());
+
+                    if (in.nextLine().equals("OK")) {
+                        this.knownNames.put(receivedRandomName, guessedFaction);
+                    } else { // DISCONNECTED
+                        continue;
+                    }
+
+                    if (this.faction.equals(guessedFaction)) {
+                        write(out, "OK");
+
+                        write(out, getRandomSecretFromList(this.knownSecrets));
+                        addSecretToList(in.nextLine(), this.knownSecrets);
+                    } else {
+                        write(out, "???");
+
+                        int maxGuess;
+                        if (this.faction.equals(Faction.CIA)) {
+                            maxGuess = CIA.getAgentList().size();
+                        } else {
+                            maxGuess = KGB.getAgentList().size();
+                        }
+                        write(out, String.valueOf(generateRandomIntInRange(1, maxGuess))); // TODO: check if they've already met?
+
+                        String message = in.nextLine();
+                        if (!message.equals("DISCONNECTED")) {
+                            addSecretToList(message, this.knownSecrets);
+                        }
+                    }
+
+                    System.out.println(this + " knows " + knownSecrets);
+                } catch (IOException | NoSuchElementException ignored) {
                 }
-
-                System.out.println(this + " knows " + knownSecrets);
-            } catch (IOException ignored) {
             }
         };
 
-        do {
-            executor.execute(server);
-            executor.execute(client);
-        } while (!this.isArrested && !isGameOver());
+        Thread serverTask = new Thread(server);
+        Thread clientTask = new Thread(client);
+
+        serverTask.start();
+        clientTask.start();
+
+        try {
+            serverTask.join();
+            clientTask.join();
+        } catch (InterruptedException e) {
+            e.printStackTrace();
+        }
 
         if (this.isArrested) {
             System.out.println(this + " has been arrested. Stopping activity.");
         }
-
-        // shutdown
-        shutDownExecutor(executor);
     }
 
     private synchronized boolean isGameOver() {

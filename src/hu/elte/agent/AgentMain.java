@@ -6,11 +6,7 @@ import java.io.IOException;
 import java.nio.file.Paths;
 import java.util.ArrayList;
 import java.util.List;
-import java.util.concurrent.ExecutorService;
-import java.util.concurrent.Executors;
 import java.util.concurrent.TimeUnit;
-
-import static hu.elte.agent.util.AgentUtil.shutDownExecutor;
 
 public class AgentMain {
 
@@ -42,16 +38,17 @@ public class AgentMain {
         List<Agent> allAgents = new ArrayList<>(CIA.getAgentList());
         allAgents.addAll(KGB.getAgentList());
 
-        ExecutorService executor = Executors.newFixedThreadPool(allAgents.size());
+        allAgents.forEach(Agent::start);
         for (Agent agent : allAgents) {
-            executor.execute(agent);
+            agent.join();
         }
-        shutDownExecutor(executor);
 
         TimeUnit.SECONDS.sleep(5);
         if (CIA.isWinner()) {
+
+
             System.out.println("The 'Central Intelligence Agency' has won the game!");
-        } else {
+        } else if (KGB.isWinner()) {
             System.out.println("The 'Komitet gosudarstvennoy bezopasnosti' has won the game!");
         }
     }

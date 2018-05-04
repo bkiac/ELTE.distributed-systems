@@ -2,10 +2,6 @@ package hu.elte.agent;
 
 import java.util.ArrayList;
 import java.util.List;
-import java.util.concurrent.ExecutorService;
-import java.util.concurrent.Executors;
-
-import static hu.elte.agent.util.AgentUtil.shutDownExecutor;
 
 public class Agency {
 

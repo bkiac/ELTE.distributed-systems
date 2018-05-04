@@ -10,8 +10,6 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.util.*;
-import java.util.concurrent.ExecutorService;
-import java.util.concurrent.TimeUnit;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import java.util.stream.Stream;
@@ -56,21 +54,4 @@ public class AgentUtil {
     public static <T> boolean listEqualsIgnoreOrder(List<T> list1, List<T> list2) {
         return new HashSet<>(list1).equals(new HashSet<>(list2));
     }
-
-
-    public static void shutDownExecutor(ExecutorService executor) {
-        try {
-            executor.shutdown();
-            executor.awaitTermination(1, TimeUnit.SECONDS);
-        } catch (InterruptedException e) {
-//            System.err.println("tasks interrupted");
-        } finally {
-            if (!executor.isTerminated()) {
-//                System.err.println("cancel non-finished tasks");
-            }
-            executor.shutdownNow();
-//            System.out.println("shutdown finished");
-        }
-    }
-
 }
