@@ -1,4 +1,4 @@
-package hu.elte.agent.thread;
+package hu.elte.agent;
 
 import hu.elte.agent.util.AgentUtil;
 import hu.elte.agent.util.Faction;
@@ -15,14 +15,14 @@ import static hu.elte.agent.AgentMain.*;
 
 public class Agent extends Thread {
 
-    protected int serialNumber;
-    protected List<String> names;
-    protected List<String> knownSecrets;
-    protected List<String> toldSecrets;
-    protected ServerSocket server;
-    protected Faction faction;
-    protected Map<String, Faction> knownNames;
-    protected boolean isArrested;
+    private int serialNumber;
+    private List<String> names;
+    private List<String> knownSecrets;
+    private List<String> toldSecrets;
+    private ServerSocket server;
+    private Faction faction;
+    private Map<String, Faction> knownNames;
+    private boolean isArrested;
 
     public Agent() {
     }
@@ -45,7 +45,7 @@ public class Agent extends Thread {
         return isArrested;
     }
 
-    protected void createServerSocket() {
+    private void createServerSocket() {
         // Try again until free port is found
         while (true) {
             try {
@@ -63,15 +63,124 @@ public class Agent extends Thread {
 
         System.out.println(this + " started on port: " + this.server.getLocalPort());
 
-        Thread serverTask = new AgentServerTask();
-        Thread clientTask = new AgentClientTask();
+        Runnable server = () -> {
+            while (!this.isArrested && !isGameOver()) {
+//                printThreads();
+
+                try (
+                        Socket agent = this.server.accept();
+                        Scanner in = new Scanner(agent.getInputStream());
+                        PrintWriter out = new PrintWriter(agent.getOutputStream())
+                ) {
+                    agent.setSoTimeout(TIMEOUT_LOWER);
+
+                    System.out.println(this + " accepted another agent on port: " + this.server.getLocalPort());
+
+                    String randomName = names.get(generateRandomIntInRange(0, names.size() - 1));
+                    write(out, randomName);
+
+                    System.out.println(this + " sent '" + randomName + "' on port: " + this.server.getLocalPort());
+
+                    Faction guessedFaction = Faction.getFactionByName(in.nextLine());
+
+                    System.out.println(this + " received '" + guessedFaction.getName() + "' as guess on port: " + this.server.getLocalPort());
+
+                    if (!guessedFaction.equals(faction)) {
+                        write(out, "DISCONNECTED");
+                        continue;
+                    } else {
+                        write(out, "OK");
+                    }
+
+                    if (in.nextLine().equals("OK")) {
+                        addSecretToList(in.nextLine(), this.knownSecrets);
+                        write(out, getRandomSecretFromList(this.knownSecrets));
+                    } else { // in.nextLine() == "???"
+                        if (Integer.parseInt(in.nextLine()) == this.serialNumber) {
+                            write(out, tellRandomSecret());
+
+                            if (AgentUtil.listEqualsIgnoreOrder(this.knownSecrets, this.toldSecrets)) {
+                                this.isArrested = true;
+                            }
+                        } else {
+                            write(out, "DISCONNECTED");
+                        }
+                    }
+
+//                    System.out.println(this + " knows " + knownSecrets);
+                } catch (IOException | NoSuchElementException ignored) {
+                    // The other agent has abruptly disconnected.
+                }
+            }
+        };
+
+        Runnable client = () -> {
+            while (!this.isArrested && !isGameOver()) {
+//                printThreads();
+
+                try {
+                    TimeUnit.MILLISECONDS.sleep(generateRandomIntInRange(TIMEOUT_LOWER, TIMEOUT_UPPER));
+                } catch (InterruptedException ignored) {
+                }
+
+                try (
+                        Socket agent = new Socket(HOST, findRandomPort());
+                        Scanner in = new Scanner(agent.getInputStream());
+                        PrintWriter out = new PrintWriter(agent.getOutputStream())
+                ) {
+                    agent.setSoTimeout(TIMEOUT_LOWER);
+
+                    System.out.println(this + " connected to an agent on port: " + agent.getPort());
+
+                    String receivedRandomName = in.nextLine();
+
+                    System.out.println(this + " received '" + receivedRandomName + "' on port: " + agent.getPort());
+
+                    Faction guessedFaction = guessFaction(receivedRandomName);
+                    write(out, guessedFaction.getName());
+
+                    System.out.println(this + " guessed server's faction as '" + guessedFaction.getName() + "' on port: " + agent.getPort());
+
+                    if (in.nextLine().equals("OK")) {
+                        this.knownNames.put(receivedRandomName, guessedFaction);
+                    } else { // DISCONNECTED
+                        continue;
+                    }
+
+                    if (this.faction.equals(guessedFaction)) {
+                        write(out, "OK");
+
+                        write(out, getRandomSecretFromList(this.knownSecrets));
+                        addSecretToList(in.nextLine(), this.knownSecrets);
+                    } else {
+                        write(out, "???");
+
+                        write(out, String.valueOf(generateRandomIntInRange(1, MAX_AGENCY_SIZE))); // TODO: check if they've already met?
+
+                        String message = in.nextLine();
+                        if (!message.equals("DISCONNECTED")) {
+                            addSecretToList(message, this.knownSecrets);
+                        }
+                    }
+
+//                    System.out.println(this + " knows " + knownSecrets);
+                } catch (IOException | NoSuchElementException ignored) {
+                    // The other agent has abruptly disconnected.
+                }
+            }
+        };
+
+        Thread serverTask = new Thread(server);
+        Thread clientTask = new Thread(client);
 
         serverTask.start();
         clientTask.start();
 
         try {
             serverTask.join();
+            System.out.println(this + " server finished 1/2");
             clientTask.join();
+            System.out.println(this + " client finished 2/2");
         } catch (InterruptedException e) {
             e.printStackTrace();
         }
@@ -81,26 +190,21 @@ public class Agent extends Thread {
         }
     }
 
-    protected synchronized boolean isGameOver() {
+    private synchronized boolean isGameOver() {
         if (KGB.isWinner() || CIA.isWinner()) {
-            System.out.println("&&&&& ALREADY OVER &&&&&");
-
-            Set<Thread> threadSet = Thread.getAllStackTraces().keySet();
-            System.out.println(threadSet);
             return true;
         }
 
         if (this.faction.equals(Faction.CIA)) {
             if (KGB.areAllAgentsArrested() || KGB.isCompromised(this)) {
                 CIA.setWinner(true);
-                System.out.println("########## CIA WON ##########");
+
                 return true;
             }
         } else { // Faction.KGB
             if (CIA.areAllAgentsArrested() || CIA.isCompromised(this)) {
                 KGB.setWinner(true);
 
-                System.out.println("########## KGB WON ##########");
                 return true;
             }
         }
@@ -108,7 +212,7 @@ public class Agent extends Thread {
         return false;
     }
 
-    protected Faction guessFaction(String msg) {
+    private Faction guessFaction(String msg) {
         Faction faction = knownNames.get(msg);
         if (faction == null) {
             int guess = generateRandomIntInRange(1, 2);
@@ -117,7 +221,7 @@ public class Agent extends Thread {
         return faction;
     }
 
-    protected int findRandomPort() {
+    private int findRandomPort() {
         int randomPort = generateRandomIntInRange(PORT_LOWER, PORT_UPPER);
         while (randomPort == this.server.getLocalPort()) {
             randomPort = generateRandomIntInRange(PORT_LOWER, PORT_UPPER);
@@ -125,17 +229,17 @@ public class Agent extends Thread {
         return randomPort;
     }
 
-    protected synchronized void addSecretToList(String secret, List<String> secrets) {
+    private synchronized void addSecretToList(String secret, List<String> secrets) {
         if (!secrets.contains(secret)) {
             secrets.add(secret);
         }
     }
 
-    protected synchronized String getRandomSecretFromList(List<String> secrets) {
+    private synchronized String getRandomSecretFromList(List<String> secrets) {
         return secrets.get(generateRandomIntInRange(0, secrets.size() - 1));
     }
 
-    protected synchronized String tellRandomSecret() {
+    private synchronized String tellRandomSecret() {
         List<String> untoldSecrets = new ArrayList<>(this.knownSecrets);
         untoldSecrets.removeAll(this.toldSecrets);
 
@@ -145,13 +249,18 @@ public class Agent extends Thread {
         return secret;
     }
 
-    protected int generateRandomIntInRange(int min, int max) {
+    private int generateRandomIntInRange(int min, int max) {
         return ThreadLocalRandom.current().nextInt(min, max + 1);
     }
 
-    protected static void write(PrintWriter pw, String message) {
+    private static void write(PrintWriter pw, String message) {
         pw.println(message);
         pw.flush();
+    }
+
+    private static void printThreads() {
+        Set<Thread> threadSet = Thread.getAllStackTraces().keySet();
+        System.out.println(threadSet);
     }
 
     @Override

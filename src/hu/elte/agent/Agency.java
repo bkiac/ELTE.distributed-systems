@@ -1,6 +1,4 @@
-package hu.elte.agent.util;
-
-import hu.elte.agent.thread.Agent;
+package hu.elte.agent;
 
 import java.util.ArrayList;
 import java.util.List;

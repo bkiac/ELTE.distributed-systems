@@ -16,11 +16,11 @@ import java.util.stream.Stream;
 
 public class AgentUtil {
 
-    public static Agency createAgencyFromFolder(String folderPath) throws IOException {
+    public static Agency createAgencyFromFolder(String folderPath, int size) throws IOException {
         List<Agent> agents = new ArrayList<>();
 
         try (Stream<Path> paths = Files.walk(Paths.get(folderPath))) {
-            paths.filter(Files::isRegularFile).forEach(p -> {
+            paths.limit(size + 1).filter(Files::isRegularFile).forEach(p -> {
                 try {
                     agents.add(createAgentFromFile(p));
                 } catch (FileNotFoundException e) {

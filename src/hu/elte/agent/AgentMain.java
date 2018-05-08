@@ -10,13 +10,15 @@ import java.util.concurrent.TimeUnit;
 
 public class AgentMain {
 
-    public static final String CIA_FOLDER = Paths.get(".").toAbsolutePath().normalize().toString() + "/cia";
-    public static final String KGB_FOLDER = Paths.get(".").toAbsolutePath().normalize().toString() + "/kgb";
+    public static final String CIA_FOLDER = Paths.get(".").toAbsolutePath().normalize().toString() + "/resources/cia";
+    public static final String KGB_FOLDER = Paths.get(".").toAbsolutePath().normalize().toString() + "/resources/kgb";
+
+    public static final int MAX_AGENCY_SIZE = 10;
 
     // localhost:20000-20100
     public static final String HOST = "localhost";
     public static final int PORT_LOWER = 20000;
-    public static final int PORT_UPPER = 20010;
+    public static final int PORT_UPPER = 20100;
 
     public static int TIMEOUT_LOWER;
     public static int TIMEOUT_UPPER;
@@ -32,8 +34,8 @@ public class AgentMain {
         TIMEOUT_LOWER = Integer.parseInt(args[2]);
         TIMEOUT_UPPER = Integer.parseInt(args[3]);
 
-        CIA = AgentUtil.createAgencyFromFolder(CIA_FOLDER);
-        KGB = AgentUtil.createAgencyFromFolder(KGB_FOLDER);
+        CIA = AgentUtil.createAgencyFromFolder(CIA_FOLDER, ciaSize);
+        KGB = AgentUtil.createAgencyFromFolder(KGB_FOLDER, kgbSize);
 
         List<Agent> allAgents = new ArrayList<>(CIA.getAgentList());
         allAgents.addAll(KGB.getAgentList());
@@ -45,8 +47,6 @@ public class AgentMain {
 
         TimeUnit.SECONDS.sleep(5);
         if (CIA.isWinner()) {
-
-
             System.out.println("The 'Central Intelligence Agency' has won the game!");
         } else if (KGB.isWinner()) {
             System.out.println("The 'Komitet gosudarstvennoy bezopasnosti' has won the game!");
