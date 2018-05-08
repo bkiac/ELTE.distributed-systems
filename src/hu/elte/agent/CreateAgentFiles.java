@@ -62,9 +62,13 @@ public class CreateAgentFiles {
     };
 
     public static void main(String[] args) throws IOException {
-        Path parentDir = Paths.get("./resources");
-        if (!Files.exists(parentDir)) {
-            Files.createDirectories(parentDir);
+        Path ciaPath = Paths.get("./resources/cia");
+        Path kgbPath = Paths.get("./resources/kgb");
+        if (!Files.exists(ciaPath)) {
+            Files.createDirectories(ciaPath);
+        }
+        if (!Files.exists(kgbPath)) {
+            Files.createDirectories(kgbPath);
         }
 
         int cryptonymCounter = 0;
@@ -72,14 +76,14 @@ public class CreateAgentFiles {
         for (int i = 0; i < SPIED_FOR_AMERICA.length; i++) {
             List<String> lines = Arrays.asList(SPIED_FOR_AMERICA[i], CRYPTONYMS[cryptonymCounter]);
 
-            writeToFile("agent1-" + (i + 1) + ".txt", lines);
+            writeToFile("cia/agent1-" + (i + 1) + ".txt", lines);
 
             cryptonymCounter++;
         }
         for (int i = 0; i < SPIED_FOR_USSR.length; i++) {
             List<String> lines = Arrays.asList(SPIED_FOR_USSR[i], CRYPTONYMS[cryptonymCounter]);
 
-            writeToFile("agent2-" + (i + 1) + ".txt", lines);
+            writeToFile("kgb/agent2-" + (i + 1) + ".txt", lines);
 
             cryptonymCounter++;
         }

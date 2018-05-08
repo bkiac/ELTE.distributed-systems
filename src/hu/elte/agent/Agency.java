@@ -1,4 +1,6 @@
-package hu.elte.agent;
+package hu.elte.agent.util;
+
+import hu.elte.agent.thread.Agent;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -38,7 +40,8 @@ public class Agency {
     }
 
     public boolean isCompromised(Agent enemyAgent) {
-        return enemyAgent.getKnownSecrets().containsAll(this.secretList);
+        List<String> secrets = new ArrayList<>(enemyAgent.getKnownSecrets());
+        return secrets.containsAll(this.secretList);
     }
 
 }
