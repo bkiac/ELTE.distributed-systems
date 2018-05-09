@@ -173,14 +173,14 @@ public class Agent extends Thread {
         Thread serverTask = new Thread(server);
         Thread clientTask = new Thread(client);
 
-        serverTask.start();
         clientTask.start();
+        serverTask.start();
 
         try {
-            serverTask.join();
-            System.out.println(this + " server finished 1/2");
             clientTask.join();
-            System.out.println(this + " client finished 2/2");
+//            System.out.println(this + " client finished 1/2");
+            serverTask.join();
+//            System.out.println(this + " server finished 2/2");
         } catch (InterruptedException e) {
             e.printStackTrace();
         }
