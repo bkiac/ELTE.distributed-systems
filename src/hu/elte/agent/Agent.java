@@ -15,14 +15,17 @@ import static hu.elte.agent.AgentMain.*;
 
 public class Agent extends Thread {
 
+    private Faction faction;
     private int serialNumber;
     private List<String> names;
     private List<String> knownSecrets;
-    private List<String> toldSecrets;
+
     private ServerSocket server;
-    private Faction faction;
-    private Map<String, Faction> knownNames;
-    private boolean isArrested;
+    private List<String> toldSecrets = new ArrayList<>();
+    private Map<String, Faction> knownNames = new HashMap<>();
+    private Map<String, Integer> knownAgentIds = new HashMap<>();
+    private Map<String, List<Integer>> alreadyTriedIds = new HashMap<>();
+    private boolean isArrested = false;
 
     public Agent() {
     }
@@ -32,9 +35,6 @@ public class Agent extends Thread {
         this.serialNumber = serialNumber;
         this.names = names;
         this.knownSecrets = secrets;
-        this.knownNames = new HashMap<>();
-        this.toldSecrets = new ArrayList<>();
-        this.isArrested = false;
     }
 
     public List<String> getKnownSecrets() {
@@ -96,7 +96,11 @@ public class Agent extends Thread {
                         addSecretToList(in.nextLine(), this.knownSecrets);
                         write(out, getRandomSecretFromList(this.knownSecrets));
                     } else { // in.nextLine() == "???"
-                        if (Integer.parseInt(in.nextLine()) == this.serialNumber) {
+                        int guessedId = Integer.parseInt(in.nextLine());
+
+                        System.out.println(this + " received '" + guessedId + "' as guess on port: " + this.server.getLocalPort());
+
+                        if (guessedId == this.serialNumber) {
                             write(out, tellRandomSecret());
 
                             if (AgentUtil.listEqualsIgnoreOrder(this.knownSecrets, this.toldSecrets)) {
@@ -155,15 +159,28 @@ public class Agent extends Thread {
                     } else {
                         write(out, "???");
 
-                        write(out, String.valueOf(generateRandomIntInRange(1, MAX_AGENCY_SIZE))); // TODO: check if they've already met?
+                        int guessedId = guessId(receivedRandomName);
+                        write(out, String.valueOf(guessedId));
+
+                        System.out.println(this + " guessed server's id as '" + guessedId + "' on port: " + agent.getPort());
 
                         String message = in.nextLine();
                         if (!message.equals("DISCONNECTED")) {
+                            knownAgentIds.put(receivedRandomName, guessedId);
                             addSecretToList(message, this.knownSecrets);
+                        } else {
+                            List<Integer> triedIds = alreadyTriedIds.get(receivedRandomName);
+
+                            if (triedIds == null) {
+                                triedIds = new ArrayList<>();
+                            }
+
+                            triedIds.add(guessedId);
+                            alreadyTriedIds.put(receivedRandomName, triedIds);
                         }
                     }
 
-//                    System.out.println(this + " knows " + knownSecrets);
+                    System.out.println(this + " knows " + knownSecrets);
                 } catch (IOException | NoSuchElementException ignored) {
                     // The other agent has abruptly disconnected.
                 }
@@ -178,9 +195,7 @@ public class Agent extends Thread {
 
         try {
             clientTask.join();
-//            System.out.println(this + " client finished 1/2");
             serverTask.join();
-//            System.out.println(this + " server finished 2/2");
         } catch (InterruptedException e) {
             e.printStackTrace();
         }
@@ -212,13 +227,35 @@ public class Agent extends Thread {
         return false;
     }
 
-    private Faction guessFaction(String msg) {
-        Faction faction = knownNames.get(msg);
+    private Faction guessFaction(String receivedName) {
+        Faction faction = knownNames.get(receivedName);
+
         if (faction == null) {
             int guess = generateRandomIntInRange(1, 2);
             faction = guess == 1 ? Faction.CIA : Faction.KGB;
         }
+
         return faction;
+    }
+
+    private int guessId(String receivedName) {
+        Integer id = this.knownAgentIds.get(receivedName);
+
+        if (id == null) {
+            // always guesses in range of 1 - MAX_AGENCY_SIZE because files aren't necessarily read in the right order
+            List<Integer> wrongIds = this.alreadyTriedIds.get(receivedName);
+            int guess = generateRandomIntInRange(1, MAX_AGENCY_SIZE);
+
+            if (wrongIds != null) {
+                while (wrongIds.contains(guess)) {
+                    guess = generateRandomIntInRange(1, MAX_AGENCY_SIZE);
+                }
+            }
+
+            id = guess;
+        }
+
+        return id;
     }
 
     private int findRandomPort() {
@@ -267,6 +304,7 @@ public class Agent extends Thread {
     public String toString() {
         StringBuilder sb = new StringBuilder();
         this.names.forEach(name -> sb.append(name).append(" "));
+        sb.append("(").append(this.serialNumber).append(") ");
         sb.append("from ").append(this.faction.getName());
         return sb.toString();
     }
