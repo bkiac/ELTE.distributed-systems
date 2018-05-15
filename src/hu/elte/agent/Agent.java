@@ -110,8 +110,6 @@ public class Agent extends Thread {
                             write(out, "DISCONNECTED");
                         }
                     }
-
-//                    System.out.println(this + " knows " + knownSecrets);
                 } catch (IOException | NoSuchElementException ignored) {
                     // The other agent has abruptly disconnected.
                 }
@@ -179,8 +177,6 @@ public class Agent extends Thread {
                             alreadyTriedIds.put(receivedRandomName, triedIds);
                         }
                     }
-
-                    System.out.println(this + " knows " + knownSecrets);
                 } catch (IOException | NoSuchElementException ignored) {
                     // The other agent has abruptly disconnected.
                 }
